@@ -1,0 +1,49 @@
+name: Forma
+options:
+  bundleIdPrefix: pt.guilherme
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    DEVELOPMENT_TEAM: ""
+targets:
+  Forma:
+    type: application
+    platform: iOS
+    sources:
+      - path: Forma
+        excludes:
+          - "**/*.md"
+    entitlements:
+      path: Forma/Forma.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+    info:
+      path: Forma/Info.plist
+      properties:
+        CFBundleDisplayName: Forma
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        CADisableMinimumFrameDurationOnPhone: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSCameraUsageDescription: "Para tirares fotos às refeições e estimar as calorias."
+        NSPhotoLibraryUsageDescription: "Para escolheres fotos de refeições da galeria."
+        NSHealthShareUsageDescription: "Para ler passos, calorias ativas, minutos de exercício e peso e ajustar as tuas metas."
+        NSHealthUpdateUsageDescription: "Para guardar a água, o peso e a nutrição que registas no Forma."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pt.guilherme.forma
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: ["$(inherited)", "-framework", "ComposeApp"]
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+    preBuildScripts:
+      - name: Compilar código Kotlin (Compose Multiplatform)
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
