@@ -1,1 +1,71 @@
+name: iOS (.ipa para Sideloadly)
 
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Escolher Xcode 16.x (compatível com Kotlin 2.1)
+        run: |
+          for v in 16.3 16.4 16.2; do
+            if [ -d "/Applications/Xcode_$v.app" ]; then sudo xcode-select -s "/Applications/Xcode_$v.app"; break; fi
+          done
+          xcodebuild -version
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Kotlin/Native
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+
+      - name: Modelo local (opcional)
+        # Se puseres o modelo num release com a tag "model", ele é incluído automaticamente.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download model -p "FoodClassifier.mlpackage.zip" -D /tmp/model 2>/dev/null \
+            && unzip -q /tmp/model/FoodClassifier.mlpackage.zip -d iosApp/Forma/Models \
+            || echo "Sem modelo local: a app usa só o Gemini para as fotos."
+
+      - name: Permissões do gradlew
+        run: chmod +x gradlew
+
+      - name: Gerar projeto Xcode
+        run: |
+          brew install xcodegen
+          cd iosApp && xcodegen generate
+
+      - name: Compilar (sem assinatura)
+        run: |
+          cd iosApp
+          xcodebuild -project Forma.xcodeproj -scheme Forma -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Criar Forma.ipa
+        run: |
+          cd iosApp
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          # assinatura ad-hoc só para levar as permissões (HealthKit); o Sideloadly volta a assinar com o teu Apple ID
+          codesign --force --sign - --entitlements Forma/Forma.entitlements "$APP"
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qry Forma.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Forma-ipa
+          path: iosApp/Forma.ipa
